@@ -1,0 +1,41 @@
+{
+    "value": [
+      {
+        "product_name": "Laptop",
+        "stock_level": 15,
+        "category": "Electronics",
+        "price": 1200,
+        "sales_data": {
+          "2024-01": 750000,
+          "2024-02": 500000
+        }
+      },
+      {
+        "product_name": "Smartphone",
+        "stock_level": 50,
+        "category": "Electronics",
+        "price": 800,
+        "sales_data": {
+          "2024-01": 400000,
+          "2024-02": 300000
+        }
+      },
+      {
+        "customer": "ABC Corp",
+        "outstanding_balance": 5000,
+        "payment_status": "Pending"
+      },
+      {
+        "customer": "XYZ Ltd",
+        "outstanding_balance": 12000,
+        "payment_status": "Paid"
+      },
+      {
+        "employee_name": "John Doe",
+        "department": "Sales",
+        "role": "Manager",
+        "sales_target": 200000
+      }
+    ]
+  }
+  
