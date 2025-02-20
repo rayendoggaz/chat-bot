@@ -6,7 +6,7 @@ import logging
 
 def load_configurations(app):
     # Load environment variables from the specified .env file
-    load_dotenv(dotenv_path="C:/Users/Betech/Desktop/python-whatsapp-bot-main/.env")
+    load_dotenv(dotenv_path="C:/Users/Betech/Desktop/python-whatsapp-bot-main/chat-bot/.env")
     app.config["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     app.config["YOUR_PHONE_NUMBER"] = os.getenv("YOUR_PHONE_NUMBER")
     app.config["APP_ID"] = os.getenv("APP_ID")

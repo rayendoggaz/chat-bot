@@ -20,7 +20,7 @@ def query_odata(user_input):
     """
     Filters the mock OData JSON to return relevant data based on user input.
     """
-    file_path = "C:/Users/Betech/Desktop/python-whatsapp-bot-main/app/utils/mock_odata.json"
+    file_path = "C:/Users/Betech/Desktop/python-whatsapp-bot-main/chat-bot/app/utils/mock_odata.json"
     
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -42,27 +42,26 @@ def query_odata(user_input):
     
     return relevant_data
 
-def log_message(phone_number, message_text, direction):
+def log_message(phone_number, name, message_text, direction):
     """
     Logs a message (sent or received) to the SQLite database messages.db.
     """
     try:
         conn = sqlite3.connect("messages.db")
         cursor = conn.cursor()
-        # Create the messages table if it doesn't exist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 phone_number TEXT,
+                name TEXT,
                 message_text TEXT,
                 direction TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Insert the message record
         cursor.execute(
-            "INSERT INTO messages (phone_number, message_text, direction) VALUES (?, ?, ?)",
-            (phone_number, message_text, direction)
+            "INSERT INTO messages (phone_number, name, message_text, direction) VALUES (?, ?, ?, ?)",
+            (phone_number, name, message_text, direction)
         )
         conn.commit()
     except Exception as e:
@@ -77,7 +76,6 @@ def generate_response(user_input):
     relevant_data = query_odata(user_input)
     
     if relevant_data:
-        # Create a summarized string of the relevant data
         data_summary = "\n".join(
             [f"{key.capitalize()}: {value}" for item in relevant_data for key, value in item.items()]
         )
@@ -145,42 +143,82 @@ def send_message(data):
 
 def process_whatsapp_message(body):
     """
-    Process incoming WhatsApp messages.
+    Process incoming WhatsApp messages and fetch the user's profile picture.
     """
     try:
-        wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
-        messages = body["entry"][0]["changes"][0]["value"].get("messages", [])
-        
-        if not messages:
-            logging.warning("No valid messages in request body")
+        entry = body["entry"][0]["changes"][0]["value"]
+        contacts = entry.get("contacts", [])
+        messages = entry.get("messages", [])
+
+        if not messages or not contacts:
+            logging.warning("No valid messages or contacts in request body")
             return
+
+        wa_id = contacts[0]["wa_id"]
+        contact_name = contacts[0]["profile"]["name"] if "profile" in contacts[0] else "Unknown"
+
+        # Fetch profile photo
+        profile_photo_url = get_whatsapp_profile_photo(wa_id)
         
-        # Extract the incoming message
         message_body = messages[0]["text"]["body"]
-        # Log the received message
-        log_message(wa_id, message_body, "received")
-        
-        # Generate a response based on the incoming message
+        log_message(wa_id, contact_name, message_body, "received")
+
         response_text = generate_response(message_body)
+        response_text = f"Hello {contact_name}, " + response_text
         response_text = process_text_for_whatsapp(response_text)
-        # Log the sent response
-        log_message(wa_id, response_text, "sent")
-        
+        log_message(wa_id, contact_name, response_text, "sent")
+
+        # Log profile picture if available
+        if profile_photo_url:
+            logging.info(f"User {contact_name} profile photo: {profile_photo_url}")
+
         data = get_text_message_input(wa_id, response_text)
         send_message(data)
+    
     except Exception as e:
         logging.error(f"Error processing WhatsApp message: {e}")
 
+
+import requests
+import logging
+
+def get_whatsapp_profile_photo(wa_id):
+    """
+    Retrieves the user's WhatsApp profile picture URL.
+    """
+    url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{wa_id}/profile"
+    
+    headers = {
+        "Authorization": f"Bearer {current_app.config['ACCESS_TOKEN']}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "profile_pic_url" in data:
+            return data["profile_pic_url"]
+        else:
+            return None  # No profile picture available
+        
+    except requests.RequestException as e:
+        logging.error(f"Error retrieving WhatsApp profile photo: {e}")
+        return None
+
+
 def is_valid_whatsapp_message(body):
     """
-    Validate the structure of an incoming WhatsApp message.
+    Validates if the incoming request body contains a valid WhatsApp message.
     """
     try:
-        return (
-            body.get("object") and
-            body["entry"][0].get("changes") and
-            body["entry"][0]["changes"][0].get("value") and
-            body["entry"][0]["changes"][0]["value"].get("messages")
-        )
-    except (KeyError, IndexError, TypeError):
+        entry = body.get("entry", [{}])[0]
+        changes = entry.get("changes", [{}])[0]
+        value = changes.get("value", {})
+
+        if "messages" in value and isinstance(value["messages"], list):
+            return True
+        return False
+    except Exception as e:
+        logging.error(f"Error validating WhatsApp message: {e}")
         return False
